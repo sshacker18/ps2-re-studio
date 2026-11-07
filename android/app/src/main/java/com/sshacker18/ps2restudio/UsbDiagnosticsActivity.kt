@@ -8,7 +8,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
-import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
@@ -33,7 +32,6 @@ class UsbDiagnosticsActivity : Activity() {
     private lateinit var status: TextView
     private val log = StringBuilder()
     private var selectedDevice: UsbDevice? = null
-    private var permissionConnection: UsbDeviceConnection? = null
 
     private val permissionAction = "com.sshacker18.ps2restudio.USB_PERMISSION"
 
@@ -106,7 +104,7 @@ class UsbDiagnosticsActivity : Activity() {
             typeface = android.graphics.Typeface.MONOSPACE
             setTextColor(0xFFF2F5FF.toInt())
             setPadding(0, pad, 0, pad)
-            textIsSelectable = true
+            setTextIsSelectable(true)
         }
         scroll.addView(report)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -193,8 +191,6 @@ class UsbDiagnosticsActivity : Activity() {
         append("Permission: ${usbManager.hasPermission(device)}")
         if (!includePermission || !usbManager.hasPermission(device)) return
         // Opening a connection obtains a handle only; no interface is claimed and no endpoint is written.
-        permissionConnection?.close()
-        permissionConnection = null
         append("USB permission confirmed. No device connection is opened in this inventory-only build.")
         append("No control transfers, endpoint reads/writes, firmware commands, or pad probing are performed.")
     }
@@ -281,7 +277,6 @@ class UsbDiagnosticsActivity : Activity() {
 
     override fun onDestroy() {
         try { unregisterReceiver(usbReceiver) } catch (_: Exception) {}
-        permissionConnection?.close()
         super.onDestroy()
     }
 }
