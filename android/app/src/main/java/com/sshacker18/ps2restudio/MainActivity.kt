@@ -23,50 +23,80 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val pad = (20 * resources.displayMetrics.density).toInt()
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-            setBackgroundColor(0xFF090D18.toInt())
-        }
+        val pad = (18 * resources.displayMetrics.density).toInt()
+        val bg = 0xFF080B18.toInt()
+        val panel = 0xFF121A31.toInt()
+        val cyan = 0xFF55D6FF.toInt()
+        val white = 0xFFF2F5FF.toInt()
+        val muted = 0xFFA7B4D0.toInt()
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(bg) }
         val scroll = ScrollView(this)
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, pad)
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad,pad,pad,pad) }
+        fun label(value:String,size:Float,color:Int,bold:Boolean=false):TextView = TextView(this).apply {
+            text=value; textSize=size; setTextColor(color)
+            if(bold) setTypeface(typeface,android.graphics.Typeface.BOLD)
+            setPadding(0,pad/3,0,pad/3)
         }
-        fun label(text: String, size: Float, color: Int, bold: Boolean = false): TextView =
-            TextView(this).apply {
-                this.text = text
-                textSize = size
-                setTextColor(color)
-                if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setPadding(0, pad / 2, 0, pad / 2)
-            }
-        content.addView(label("PS2 RE STUDIO", 13f, 0xFF83B7FF.toInt(), true))
-        content.addView(label("ELF Reverse Engineering", 29f, 0xFFEDF2FF.toInt(), true))
-        content.addView(label("Offline ELF header, section and symbol inspection. Select a PS2 homebrew executable.", 15f, 0xFFAAB8D0.toInt()))
-        content.addView(Button(this).apply { text = "CHOOSE ELF FILE"; setOnClickListener { chooseFile() } })
-        status = label("Ready. Select dungeon_game.elf to begin.", 14f, 0xFF9FC5FF.toInt())
+        fun card():LinearLayout = LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL; setPadding(pad,pad,pad,pad); setBackgroundColor(panel)
+        }
+        fun button(value:String,color:Int,click:()->Unit):Button = Button(this).apply {
+            text=value; setTextColor(0xFF07101F.toInt())
+            setBackgroundTintList(android.content.res.ColorStateList.valueOf(color))
+            setOnClickListener { click() }
+        }
+        content.addView(label("◉  PLAYSTATION 2  /  DEV MODE",13f,cyan,true))
+        content.addView(label("PS2 RE STUDIO",28f,white,true))
+        content.addView(label("REVERSE ENGINEERING • GAME LAB",11f,muted,true))
+        val hero=card()
+        hero.addView(label("GAME DECK",12f,cyan,true))
+        hero.addView(label("Load an ELF. Explore its code. Prepare it for execution.",18f,white,true))
+        hero.addView(label("Offline PS2 homebrew ELF analysis. Playback requires a compatible PS2 emulator or recompiler core.",13f,muted))
+        hero.addView(button("＋  LOAD PS2 ELF",cyan) { chooseFile() })
+        content.addView(hero,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=pad })
+        status=label("NO GAME LOADED  •  READY",13f,cyan,true)
         content.addView(status)
-        filter = EditText(this).apply {
-            hint = "Search symbols or instructions"
-            setSingleLine(true)
-            setTextColor(0xFFEDF2FF.toInt())
-            setHintTextColor(0xFF8FA4C4.toInt())
-            setBackgroundColor(0xFF172238.toInt())
-            addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { renderReport(s?.toString().orEmpty()) }
-                override fun afterTextChanged(s: Editable?) {}
+        val controls=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+        controls.addView(button("DOWNLOAD REPORT",0xFFB7C9FF.toInt()) { saveReport() },
+            LinearLayout.LayoutParams(0,-2,1f).apply { marginEnd=pad/2 })
+        controls.addView(button("PLAY",0xFF8A91A8.toInt()) { showPlaybackNotice() },
+            LinearLayout.LayoutParams(0,-2,1f).apply { marginStart=pad/2 })
+        content.addView(controls)
+        val analysis=card()
+        analysis.addView(label("ANALYSIS BAY",12f,cyan,true))
+        filter=EditText(this).apply {
+            hint="Filter functions, sections, MIPS instructions…"; setSingleLine(true); textSize=14f
+            setTextColor(white); setHintTextColor(muted); setBackgroundColor(0xFF1B2743.toInt())
+            addTextChangedListener(object:TextWatcher {
+                override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
+                override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) { renderReport(s?.toString().orEmpty()) }
+                override fun afterTextChanged(s:Editable?) {}
             })
         }
-        content.addView(filter)
-        output = label("Your analysis report will appear here.", 14f, 0xFFEDF2FF.toInt()).apply {
-            setBackgroundColor(0xFF111A2B.toInt()); setPadding(pad, pad, pad, pad)
+        analysis.addView(filter)
+        output=label("Your selected game's ELF report will appear here.",13f,white).apply {
+            typeface=android.graphics.Typeface.MONOSPACE; setPadding(0,pad,0,pad)
         }
-        content.addView(output, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        content.addView(label("Milestone 02 - Section and symbol explorer", 12f, 0xFF8FA4C4.toInt()))
+        analysis.addView(output)
+        content.addView(analysis,LinearLayout.LayoutParams(-1,-2).apply { topMargin=pad })
+        content.addView(label("BUILD 0.4  •  OFFLINE ANALYSIS  •  PLAYBACK CORE NOT YET CONNECTED",10f,muted,true))
         scroll.addView(content); root.addView(scroll); setContentView(root)
+    }
+
+    private fun saveReport() {
+        if (completeReport.isBlank()) { status.text = "LOAD AND ANALYZE AN ELF FIRST"; return }
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE); type = "text/plain"
+            putExtra(Intent.EXTRA_TITLE, "ps2-re-studio-analysis.txt")
+        }
+        startActivityForResult(intent, 101)
+    }
+
+    private fun showPlaybackNotice() {
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Playback core not connected")
+            .setMessage("The ELF has been inspected, but analysis alone cannot run a PS2 game. The next milestone is integrating a compatible PS2 emulator or recompiler core, then mapping controls and graphics/audio output.")
+            .setPositiveButton("UNDERSTOOD", null).show()
     }
 
     private fun chooseFile() {
@@ -77,8 +107,16 @@ class MainActivity : Activity() {
     @Deprecated("Uses the platform document picker")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != 100 || resultCode != RESULT_OK) return
+        if (resultCode != RESULT_OK) return
         val uri: Uri = data?.data ?: return
+        if (requestCode == 101) {
+            try {
+                contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { it.write(completeReport) }
+                status.text = "REPORT SAVED  •  READY TO SHARE"
+            } catch (e: Exception) { status.text = "REPORT SAVE FAILED" }
+            return
+        }
+        if (requestCode != 100) return
         try {
             val bytes = contentResolver.openInputStream(uri)?.use { input ->
                 val out = java.io.ByteArrayOutputStream(); val buffer = ByteArray(8192); var total = 0
