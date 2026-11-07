@@ -309,19 +309,32 @@ class MainActivity : Activity() {
                         .append("  ").append(decodeMips(word, address)).append('\n')
                     i += 4
                 }
-                val flow = MipsControlFlow.analyze(instructionWords, textSection.address)
-                report.append("\nCONTROL FLOW RECOVERY\n")
+                // Analyze a bounded but substantially larger .text window than the UI disassembly preview.
+                val cfgWords = ArrayList<Long>()
+                val cfgLimit = minOf(textSection.size, 256L * 1024L)
+                var cfgOffset = 0L
+                while (cfgOffset + 4 <= cfgLimit && textSection.offset + cfgOffset + 4 <= data.size) {
+                    cfgWords.add(u32(b, (textSection.offset + cfgOffset).toInt()))
+                    cfgOffset += 4
+                }
+                val flow = MipsControlFlow.analyze(cfgWords, textSection.address)
+                report.append("\nCONTROL FLOW GRAPH (bounded .text analysis)\n")
+                report.append("Analyzed instructions: ").append(cfgWords.size).append('\n')
                 report.append("Basic-block start candidates: ").append(flow.blockStarts.size).append('\n')
-                flow.blockStarts.take(200).forEach { address ->
+                flow.blockStarts.take(500).forEach { address ->
                     report.append("BLOCK 0x").append(java.lang.Long.toHexString(address)).append('\n')
                 }
                 report.append("Control-flow edges: ").append(flow.edges.size).append('\n')
-                flow.edges.take(300).forEach { edge ->
+                flow.edges.take(1000).forEach { edge ->
                     report.append("0x").append(java.lang.Long.toHexString(edge.from))
                         .append(" -> ").append(edge.to?.let { "0x" + java.lang.Long.toHexString(it) } ?: "INDIRECT")
-                        .append("  [").append(edge.kind).append("]\n")
+                        .append("  [").append(edge.kind).append("]")
+                        .append(edge.delaySlot?.let { " delay-slot=0x" + java.lang.Long.toHexString(it) } ?: "")
+                        .append('\n')
                 }
-                report.append("Edges are static candidates; indirect jumps and delay-slot semantics require deeper analysis.\n")
+                report.append("Delay-slot instruction addresses: ").append(flow.delaySlots.size).append('\n')
+                report.append("Direct call sites: ").append(flow.edges.count { it.kind == "call" }).append('\n')
+                report.append("Indirect transfers remain unresolved; branch-likely annul semantics and dynamic targets are not inferred.\n")
                 report.append("Unsupported PS2/VU/MMI encodings remain raw .word values.\n")
             }
         }
