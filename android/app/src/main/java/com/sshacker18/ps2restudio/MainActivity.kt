@@ -59,9 +59,10 @@ class MainActivity : Activity() {
         val controls=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
         controls.addView(button("DOWNLOAD REPORT",0xFFB7C9FF.toInt()) { saveReport() },
             LinearLayout.LayoutParams(0,-2,1f).apply { marginEnd=pad/2 })
-        controls.addView(button("PLAY",0xFF8A91A8.toInt()) { showPlaybackNotice() },
+        controls.addView(button("COPY REPORT",0xFF9DE7C3.toInt()) { copyReport() },
             LinearLayout.LayoutParams(0,-2,1f).apply { marginStart=pad/2 })
         content.addView(controls)
+        content.addView(button("PLAYBACK STATUS",0xFF8A91A8.toInt()) { showPlaybackNotice() })
         val analysis=card()
         analysis.addView(label("ANALYSIS BAY",12f,cyan,true))
         filter=EditText(this).apply {
@@ -90,6 +91,13 @@ class MainActivity : Activity() {
             putExtra(Intent.EXTRA_TITLE, "ps2-re-studio-analysis.txt")
         }
         startActivityForResult(intent, 101)
+    }
+
+    private fun copyReport() {
+        if (completeReport.isBlank()) { status.text = "LOAD AND ANALYZE AN ELF FIRST"; return }
+        val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("PS2 RE Studio report", completeReport))
+        status.text = "REPORT COPIED TO CLIPBOARD"
     }
 
     private fun showPlaybackNotice() {
