@@ -15,7 +15,7 @@ import android.text.TextWatcher
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-class MainActivity : Activity() {
+class MainActivity : GamepadInputActivity() {
     private lateinit var output: TextView
     private lateinit var status: TextView
     private lateinit var filter: EditText
