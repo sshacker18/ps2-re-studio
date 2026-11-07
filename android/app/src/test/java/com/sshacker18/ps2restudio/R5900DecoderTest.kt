@@ -17,6 +17,6 @@ class R5900DecoderTest {
     }
 
     @Test fun preservesUnknownWords() {
-        assertEquals(".word 0xFFBF0010", R5900Decoder.decode(0xFFBF0010L, 0x100008L))
+        assertEquals(".word 0xF8000010", R5900Decoder.decode(0xF8000010L, 0x100008L))
     }
 }
