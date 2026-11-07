@@ -8,7 +8,9 @@ A native, offline-first Android workbench for inspecting PlayStation 2 homebrew 
 - Parse ELF32/ELF64 headers, program segments, section headers, and symbol tables.
 - Identify MIPS ELF32 little-endian files as **PS2 format candidates**, never as proof of compatibility.
 - Disassemble a bounded window of standard MIPS instructions using the conservative R5900 decoder.
-- Recover static branch/jump edges and basic-block start candidates from the inspected `.text` window.
+- Recover symbol-backed function records with HIGH confidence labels and keep prologue heuristics explicitly low-confidence.
+- Infer missing function sizes only from the next known symbol or executable-section boundary.
+- Recover branch/jump edges, delay-slot addresses, basic-block candidates, and bounded per-function CFG summaries over up to 256 KiB of `.text`.
 - Search the generated report, copy it to the clipboard, or export it as a text file.
 - Enforce a 32 MB input limit and display an explicit notice that playback is not yet connected.
 
