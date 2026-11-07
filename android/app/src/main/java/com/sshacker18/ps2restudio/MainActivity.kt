@@ -172,6 +172,46 @@ class MainActivity : Activity() {
             val readable = demangle(rawName)
             report.append(if (readable != rawName) symbol.replaceFirst(rawName, readable + " [" + rawName + "]") else symbol).append('\n')
         }
+        val namedFunctions = symbols.mapNotNull { line ->
+            val match = Regex("^(.*?) value=0x([0-9a-fA-F]+).*type=FUNC").find(line)
+            match?.let { it.groupValues[2].toLongOrNull(16)?.let { address -> address to it.groupValues[1] } }
+        }.distinctBy { it.first }
+        report.append("\nFUNCTION DISCOVERY\n")
+        if (namedFunctions.isNotEmpty()) {
+            report.append("Named function symbols: ").append(namedFunctions.size).append('\n')
+            for ((address, name) in namedFunctions.take(150)) {
+                report.append("0x").append(java.lang.Long.toHexString(address)).append("  ").append(name).append("  [ELF FUNC symbol]\n")
+            }
+        } else {
+            report.append("No named STT_FUNC symbols; scanning .text for common MIPS stack-frame prologues.\n")
+        }
+        if (machine == 8) {
+            val code = sections.firstOrNull { sec ->
+                names?.let { readString(it, sec.nameOffset) } == ".text" && (sec.flags and 0x4L) != 0L
+            }
+            if (code != null && namedFunctions.isEmpty()) {
+                val candidates = ArrayList<Long>()
+                val limit = minOf(code.size, (data.size - code.offset).coerceAtLeast(0))
+                var cursor = 0L
+                while (cursor + 4 <= limit && candidates.size < 150) {
+                    val word = u32(b, (code.offset + cursor).toInt())
+                    val op = ((word ushr 26) and 63).toInt()
+                    val rs = ((word ushr 21) and 31).toInt()
+                    val rt = ((word ushr 16) and 31).toInt()
+                    val immediate = (word and 0xffff).toInt().toShort().toInt()
+                    val stackAdjust = op == 9 && rs == 29 && rt == 29 && immediate < 0
+                    val savesReturn = op == 43 && rs == 29 && rt == 31
+                    if (stackAdjust || savesReturn) {
+                        val address = code.address + cursor
+                        if (candidates.isEmpty() || address - candidates.last() >= 16) candidates.add(address)
+                    }
+                    cursor += 4
+                }
+                report.append("Heuristic function-entry candidates: ").append(candidates.size).append('\n')
+                for (address in candidates) report.append("0x").append(java.lang.Long.toHexString(address)).append("  [stack-frame prologue heuristic]\n")
+                report.append("These are candidate entry points, not proven function boundaries.\n")
+            }
+        }
         report.append("\nStripped executables may not contain symbol names; section metadata is still available.\n")
         if (machine == 8) {
             val textSection = sections.firstOrNull { sec ->
