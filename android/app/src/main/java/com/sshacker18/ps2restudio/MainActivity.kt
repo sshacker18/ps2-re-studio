@@ -378,45 +378,7 @@ class MainActivity : Activity() {
         return if (parts.isEmpty()) name else parts.joinToString("::")
     }
 
-    private fun decodeMips(word: Long, pc: Long): String {
-        val op=((word ushr 26) and 63).toInt(); val rs=((word ushr 21) and 31).toInt()
-        val rt=((word ushr 16) and 31).toInt(); val rd=((word ushr 11) and 31).toInt()
-        val sh=((word ushr 6) and 31).toInt(); val fn=(word and 63).toInt()
-        val imm=(word and 0xffff).toInt().toShort().toInt(); val target=word and 0x03ffffff
-        val names=arrayOf("zero","at","v0","v1","a0","a1","a2","a3","t0","t1","t2","t3","t4","t5","t6","t7","s0","s1","s2","s3","s4","s5","s6","s7","t8","t9","k0","k1","gp","sp","fp","ra")
-        fun reg(n:Int) = "$" + names[n]
-        val branch=pc+4+(imm.toLong() shl 2)
-        return when(op) {
-            0 -> when(fn) {
-                0 -> if(word==0L) "nop" else "sll " + reg(rd)+", "+reg(rt)+", "+sh
-                2 -> "srl "+reg(rd)+", "+reg(rt)+", "+sh
-                3 -> "sra "+reg(rd)+", "+reg(rt)+", "+sh
-                8 -> "jr "+reg(rs); 9 -> "jalr "+reg(rd)+", "+reg(rs)
-                16 -> "mfhi "+reg(rd); 18 -> "mflo "+reg(rd)
-                24 -> "mult "+reg(rs)+", "+reg(rt); 25 -> "multu "+reg(rs)+", "+reg(rt)
-                32 -> "add "+reg(rd)+", "+reg(rs)+", "+reg(rt)
-                33 -> "addu "+reg(rd)+", "+reg(rs)+", "+reg(rt)
-                34 -> "sub "+reg(rd)+", "+reg(rs)+", "+reg(rt)
-                35 -> "subu "+reg(rd)+", "+reg(rs)+", "+reg(rt)
-                36 -> "and "+reg(rd)+", "+reg(rs)+", "+reg(rt)
-                37 -> "or "+reg(rd)+", "+reg(rs)+", "+reg(rt)
-                42 -> "slt "+reg(rd)+", "+reg(rs)+", "+reg(rt)
-                else -> ".word 0x"+java.lang.Long.toHexString(word)
-            }
-            2,3 -> (if(op==2) "j " else "jal ")+"0x"+java.lang.Long.toHexString(((pc+4) and 0xf0000000L) or (target shl 2))
-            4 -> "beq "+reg(rs)+", "+reg(rt)+", 0x"+java.lang.Long.toHexString(branch)
-            5 -> "bne "+reg(rs)+", "+reg(rt)+", 0x"+java.lang.Long.toHexString(branch)
-            8 -> "addi "+reg(rt)+", "+reg(rs)+", "+imm
-            9 -> "addiu "+reg(rt)+", "+reg(rs)+", "+imm
-            12 -> "andi "+reg(rt)+", "+reg(rs)+", 0x"+java.lang.Long.toHexString(word and 0xffff)
-            13 -> "ori "+reg(rt)+", "+reg(rs)+", 0x"+java.lang.Long.toHexString(word and 0xffff)
-            15 -> "lui "+reg(rt)+", 0x"+java.lang.Long.toHexString(word and 0xffff)
-            35 -> "lw "+reg(rt)+", "+imm+"("+reg(rs)+")"
-            43 -> "sw "+reg(rt)+", "+imm+"("+reg(rs)+")"
-            18 -> "cop2/raw 0x"+java.lang.Long.toHexString(word)
-            else -> ".word 0x"+java.lang.Long.toHexString(word)
-        }
-    }
+    private fun decodeMips(word: Long, pc: Long): String = R5900Decoder.decode(word, pc)
 
     private fun u32(buffer:ByteBuffer,offset:Int):Long=buffer.getInt(offset).toLong() and 0xffffffffL
 }
