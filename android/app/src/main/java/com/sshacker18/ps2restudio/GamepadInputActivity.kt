@@ -24,7 +24,7 @@ abstract class GamepadInputActivity : Activity(), InputManager.InputDeviceListen
     )
 
     protected val connectedPhysicalGamepads: List<PhysicalGamepad>
-        get() = InputDevice.getDeviceIds().mapNotNull { id ->
+        get() = InputDevice.getDeviceIds().toList().mapNotNull { id ->
             InputDevice.getDevice(id)?.takeIf(::isGamepad)?.let {
                 PhysicalGamepad(it.id, it.name ?: "Unknown controller", it.sources, it.isExternal)
             }
@@ -79,7 +79,7 @@ abstract class GamepadInputActivity : Activity(), InputManager.InputDeviceListen
     private fun isGamepadKey(event: KeyEvent): Boolean {
         val device = event.device ?: return false
         return isGamepad(device) &&
-            (event.isGamepadButton || event.keyCode in DPAD_KEYS || event.keyCode in SYSTEM_GAMEPAD_KEYS)
+            (KeyEvent.isGamepadButton(event.keyCode) || event.keyCode in DPAD_KEYS || event.keyCode in SYSTEM_GAMEPAD_KEYS)
     }
 
     private fun isGamepadMotion(event: MotionEvent): Boolean {
