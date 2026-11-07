@@ -151,7 +151,7 @@ internal object R5900Decoder {
     private fun decodeCop0(word: Long, rs: Int, rt: Int, rd: Int, sa: Int, fn: Int): String =
         when (rs) {
             0x00 -> "mfc0 " + r(rt) + ", \$c0" + rd
-            0x04 -> "mtc0 " + r(rt) + ", $c0" + rd
+            0x04 -> "mtc0 " + r(rt) + ", \$c0" + rd
             0x10 -> when (fn) {
                 0x01 -> "tlbr"; 0x02 -> "tlbwi"; 0x06 -> "tlbwr"; 0x08 -> "tlbp"
                 0x18 -> "eret"; 0x20 -> "wait"; else -> ".word COP0 " + hex(word)
@@ -162,9 +162,9 @@ internal object R5900Decoder {
     private fun decodeCop1(word: Long, rs: Int, rt: Int, rd: Int, sa: Int, fn: Int): String =
         when (rs) {
             0x00 -> "mfc1 " + r(rt) + ", \$f" + rd
-            0x02 -> "cfc1 " + r(rt) + ", $f" + rd
-            0x04 -> "mtc1 " + r(rt) + ", $f" + rd
-            0x06 -> "ctc1 " + r(rt) + ", $f" + rd
+            0x02 -> "cfc1 " + r(rt) + ", \$f" + rd
+            0x04 -> "mtc1 " + r(rt) + ", \$f" + rd
+            0x06 -> "ctc1 " + r(rt) + ", \$f" + rd
             else -> ".word COP1 " + hex(word)
         }
 
