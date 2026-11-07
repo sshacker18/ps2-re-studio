@@ -15,7 +15,7 @@ import android.text.TextWatcher
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-class MainActivity : Activity() {
+class MainActivity : GamepadInputActivity() {
     private lateinit var output: TextView
     private lateinit var status: TextView
     private lateinit var filter: EditText
@@ -59,9 +59,10 @@ class MainActivity : Activity() {
         val controls=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
         controls.addView(button("DOWNLOAD REPORT",0xFFB7C9FF.toInt()) { saveReport() },
             LinearLayout.LayoutParams(0,-2,1f).apply { marginEnd=pad/2 })
-        controls.addView(button("PLAY",0xFF8A91A8.toInt()) { showPlaybackNotice() },
+        controls.addView(button("COPY REPORT",0xFF9DE7C3.toInt()) { copyReport() },
             LinearLayout.LayoutParams(0,-2,1f).apply { marginStart=pad/2 })
         content.addView(controls)
+        content.addView(button("PLAYBACK STATUS",0xFF8A91A8.toInt()) { showPlaybackNotice() })
         val analysis=card()
         analysis.addView(label("ANALYSIS BAY",12f,cyan,true))
         filter=EditText(this).apply {
@@ -90,6 +91,13 @@ class MainActivity : Activity() {
             putExtra(Intent.EXTRA_TITLE, "ps2-re-studio-analysis.txt")
         }
         startActivityForResult(intent, 101)
+    }
+
+    private fun copyReport() {
+        if (completeReport.isBlank()) { status.text = "LOAD AND ANALYZE AN ELF FIRST"; return }
+        val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("PS2 RE Studio report", completeReport))
+        status.text = "REPORT COPIED TO CLIPBOARD"
     }
 
     private fun showPlaybackNotice() {
@@ -161,8 +169,11 @@ class MainActivity : Activity() {
         val shentsize = b.getShort(if (elfClass == 1) 46 else 58).toInt() and 0xffff
         val shnum = b.getShort(if (elfClass == 1) 48 else 60).toInt() and 0xffff
         val shstrndx = b.getShort(if (elfClass == 1) 50 else 62).toInt() and 0xffff
-        require(phnum == 0 || phoff + phentsize.toLong()*phnum <= data.size) { "Program header table is outside the file." }
-        require(shnum == 0 || shoff + shentsize.toLong()*shnum <= data.size) { "Section header table is outside the file." }
+        require(phnum == 0 || phentsize >= if (elfClass == 1) 32 else 56) { "Program header entry size is invalid." }
+        require(shnum == 0 || shentsize >= if (elfClass == 1) 40 else 64) { "Section header entry size is invalid." }
+        require(phnum == 0 || (phoff >= 0 && phoff + phentsize.toLong()*phnum <= data.size)) { "Program header table is outside the file." }
+        require(shnum == 0 || (shoff >= 0 && shoff + shentsize.toLong()*shnum <= data.size)) { "Section header table is outside the file." }
+        require(shnum == 0 || shstrndx == 0 || shstrndx == 0xffff || shstrndx < shnum) { "Section-name string table index is out of range." }
         val machineName = when(machine) { 8->"MIPS";3->"Intel 80386";40->"ARM";62->"x86-64";183->"AArch64";else->"Unknown ($machine)" }
         val typeName = when(type) { 0->"NONE";1->"REL";2->"EXEC";3->"DYN";4->"CORE";else->"Unknown ($type)" }
         val ps2 = elfClass==1 && encoding==1 && machine==8
@@ -186,6 +197,10 @@ class MainActivity : Activity() {
             val fileSize=if(elfClass==1)u32(b,off+16) else b.getLong(off+32)
             val memSize=if(elfClass==1)u32(b,off+20) else b.getLong(off+40)
             val pFlags=if(elfClass==1)u32(b,off+24) else b.getInt(off+4).toLong() and 0xffffffffL
+            val pOffset=if(elfClass==1)u32(b,off+4) else b.getLong(off+8)
+            require(fileSize >= 0 && memSize >= fileSize && pOffset >= 0 && pOffset + fileSize <= data.size) {
+                "Program segment #$i has an invalid file or memory range."
+            }
             report.append("#").append(i).append(" type=").append(pType).append(" vaddr=0x")
                 .append(java.lang.Long.toHexString(vaddr)).append(" file=").append(fileSize)
                 .append(" mem=").append(memSize).append(" flags=0x").append(java.lang.Long.toHexString(pFlags)).append('\n')
@@ -250,6 +265,30 @@ class MainActivity : Activity() {
                 report.append("These are candidate entry points, not proven function boundaries.\n")
             }
         }
+        // Confidence-labelled catalog: only STT_FUNC symbols in executable sections are high confidence.
+        val executableIndices = sections.filter { (it.flags and 0x4L) != 0L }.map { it.index }.toSet()
+        val functionRecords = symbols.mapNotNull { line ->
+            val match = Regex("^(.*?) value=0x([0-9a-fA-F]+) size=(\\d+) bind=.* type=FUNC section=(\\d+)$").find(line)
+            match?.let {
+                val address = it.groupValues[2].toLongOrNull(16) ?: return@let null
+                val size = it.groupValues[3].toLongOrNull() ?: 0L
+                val sectionIndex = it.groupValues[4].toIntOrNull() ?: return@let null
+                FunctionRecovery.Symbol(it.groupValues[1], address, size, 2, sectionIndex)
+            }
+        }
+        val highConfidenceFunctions = FunctionRecovery.fromSymbols(functionRecords, executableIndices)
+        val catalog = FunctionRecovery.inferMissingSizes(
+            highConfidenceFunctions, sections.filter { it.index in executableIndices }
+                .maxOfOrNull { it.address + it.size } ?: 0L
+        )
+        report.append("\nFUNCTION CATALOG (confidence-labelled)\n")
+        report.append("High-confidence ELF STT_FUNC records: ").append(catalog.size).append('\n')
+        catalog.take(300).forEach { fn ->
+            report.append("0x").append(java.lang.Long.toHexString(fn.address))
+                .append(" size=").append(fn.size).append(" ").append(fn.name)
+                .append(" [HIGH • ").append(fn.source).append("]\n")
+        }
+        report.append("Function sizes of zero were bounded by the next symbol or executable-section end; inferred sizes are estimates.\n")
         report.append("\nStripped executables may not contain symbol names; section metadata is still available.\n")
         if (machine == 8) {
             val textSection = sections.firstOrNull { sec ->
@@ -260,14 +299,62 @@ class MainActivity : Activity() {
                 val start = textSection.offset
                 val available = minOf(textSection.size, 128L * 4L)
                 var i = 0L
+                val instructionWords = ArrayList<Long>()
                 while (i + 4 <= available && start + i + 4 <= data.size) {
                     val word = u32(b, (start + i).toInt())
                     val address = textSection.address + i
+                    instructionWords.add(word)
                     report.append("0x").append(java.lang.Long.toHexString(address))
                         .append("  ").append(java.lang.String.format("%08X", word))
                         .append("  ").append(decodeMips(word, address)).append('\n')
                     i += 4
                 }
+                // Analyze a bounded but substantially larger .text window than the UI disassembly preview.
+                val cfgWords = ArrayList<Long>()
+                val cfgLimit = minOf(textSection.size, 256L * 1024L)
+                var cfgOffset = 0L
+                while (cfgOffset + 4 <= cfgLimit && textSection.offset + cfgOffset + 4 <= data.size) {
+                    cfgWords.add(u32(b, (textSection.offset + cfgOffset).toInt()))
+                    cfgOffset += 4
+                }
+                val flow = MipsControlFlow.analyze(cfgWords, textSection.address)
+                report.append("\nCONTROL FLOW GRAPH (bounded .text analysis)\n")
+                report.append("Analyzed instructions: ").append(cfgWords.size).append('\n')
+                report.append("Basic-block start candidates: ").append(flow.blockStarts.size).append('\n')
+                flow.blockStarts.take(500).forEach { address ->
+                    report.append("BLOCK 0x").append(java.lang.Long.toHexString(address)).append('\n')
+                }
+                report.append("Control-flow edges: ").append(flow.edges.size).append('\n')
+                flow.edges.take(1000).forEach { edge ->
+                    report.append("0x").append(java.lang.Long.toHexString(edge.from))
+                        .append(" -> ").append(edge.to?.let { "0x" + java.lang.Long.toHexString(it) } ?: "INDIRECT")
+                        .append("  [").append(edge.kind).append("]")
+                        .append(edge.delaySlot?.let { " delay-slot=0x" + java.lang.Long.toHexString(it) } ?: "")
+                        .append('\n')
+                }
+                report.append("Delay-slot instruction addresses: ").append(flow.delaySlots.size).append('\n')
+                report.append("Direct call sites: ").append(flow.edges.count { it.kind == "call" }).append('\n')
+                report.append("\nPER-FUNCTION CFG SUMMARIES (symbol-backed functions)\n")
+                var renderedFunctions = 0
+                for (fn in catalog) {
+                    if (renderedFunctions >= 100) break
+                    val startIndex = ((fn.address - textSection.address) / 4L).toInt()
+                    if (startIndex !in cfgWords.indices) continue
+                    val availableWords = cfgWords.size - startIndex
+                    val requestedWords = if (fn.size > 0L) (fn.size / 4L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt() else availableWords
+                    val count = minOf(availableWords, requestedWords).coerceAtLeast(0)
+                    if (count == 0) continue
+                    val functionFlow = MipsControlFlow.analyze(cfgWords.subList(startIndex, startIndex + count), fn.address)
+                    report.append("FUNCTION ").append(fn.name).append(" @0x")
+                        .append(java.lang.Long.toHexString(fn.address))
+                        .append(" blocks=").append(functionFlow.blockStarts.size)
+                        .append(" edges=").append(functionFlow.edges.size)
+                        .append(" calls=").append(functionFlow.edges.count { it.kind == "call" })
+                        .append(" confidence=HIGH\n")
+                    renderedFunctions++
+                }
+                report.append("Per-function CFG summaries are bounded to 100 symbol-backed functions in the analyzed .text window.\n")
+                report.append("Indirect transfers remain unresolved; branch-likely annul semantics and dynamic targets are not inferred.\n")
                 report.append("Unsupported PS2/VU/MMI encodings remain raw .word values.\n")
             }
         }
