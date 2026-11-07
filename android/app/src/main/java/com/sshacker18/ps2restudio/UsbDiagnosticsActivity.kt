@@ -15,7 +15,6 @@ import android.os.Bundle
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
-import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -180,10 +179,9 @@ class UsbDiagnosticsActivity : Activity() {
         }
         selectedDevice = device
         val intent = Intent(permissionAction).setPackage(packageName)
-        val pending = PendingIntent.getBroadcast(
-            this, device.deviceId, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        )
+        val pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT or
+            (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+        val pending = PendingIntent.getBroadcast(this, device.deviceId, intent, pendingFlags)
         usbManager.requestPermission(device, pending)
         status.text = "Waiting for Android USB permission"
         append("Requested Android USB permission for ${device.deviceName}.")
@@ -196,9 +194,9 @@ class UsbDiagnosticsActivity : Activity() {
         if (!includePermission || !usbManager.hasPermission(device)) return
         // Opening a connection obtains a handle only; no interface is claimed and no endpoint is written.
         permissionConnection?.close()
-        permissionConnection = usbManager.openDevice(device)
-        append("UsbDeviceConnection opened: ${permissionConnection != null}")
-        append("No control transfers, endpoint reads/writes, firmware commands, or pad probing are performed in this build.")
+        permissionConnection = null
+        append("USB permission confirmed. No device connection is opened in this inventory-only build.")
+        append("No control transfers, endpoint reads/writes, firmware commands, or pad probing are performed.")
     }
 
     private fun safeSerial(device: UsbDevice): String = try {
