@@ -50,7 +50,7 @@ internal object R5900Decoder {
             0x0f -> "lui " + r(rt) + ", " + hex(uimm)
             0x10 -> decodeCop0(word, rs, rt, rd, sa, fn)
             0x11 -> decodeCop1(word, rs, rt, rd, sa, fn)
-            0x12 -> decodeCop2(word, rs, rt, rd, sa, fn)
+            0x12 -> decodeCop2(word, rs, rt, rd, sa, fn, pc)
             0x14 -> "beql " + r(rs) + ", " + r(rt) + ", " + hex(target(pc, imm))
             0x15 -> "bnel " + r(rs) + ", " + r(rt) + ", " + hex(target(pc, imm))
             0x16 -> if (rt == 0) "blezl " + r(rs) + ", " + hex(target(pc, imm)) else raw(word)
@@ -168,24 +168,25 @@ internal object R5900Decoder {
             else -> ".word COP1 " + hex(word)
         }
 
-    private fun decodeCop2(word: Long, rs: Int, rt: Int, rd: Int, sa: Int, fn: Int): String =
+    private fun decodeCop2(word: Long, rs: Int, rt: Int, rd: Int, sa: Int, fn: Int, pc: Long): String =
         when (rs) {
-            0x00 -> "qmfc2 " + r(rt) + ", $vf" + rd
-            0x02 -> "cfc2 " + r(rt) + ", $vi" + rd
-            0x04 -> "qmtc2 " + r(rt) + ", $vf" + rd
-            0x06 -> "ctc2 " + r(rt) + ", $vi" + rd
-            0x08 -> "bc2" + if (rt and 1 == 0) "f " else "t " + hex(word and 0xffff)
+            0x00 -> "qmfc2 " + r(rt) + ", \$vf" + rd
+            0x02 -> "cfc2 " + r(rt) + ", \$vi" + rd
+            0x04 -> "qmtc2 " + r(rt) + ", \$vf" + rd
+            0x06 -> "ctc2 " + r(rt) + ", \$vi" + rd
+            0x08 -> "bc2" + if (rt and 1 == 0) "f " else "t " +
+                hex(target(pc, signed16(word)))
             else -> ".word COP2/VU " + hex(word)
         }
 
+    // MMI group encodings are retained raw until each sub-op has a
+    // verified R5900 encoding and test vector.
     private fun decodeMmi(word: Long, rs: Int, rt: Int, rd: Int, sa: Int, fn: Int): String {
-        val sub = ((word ushr 6) and 0x1f).toInt()
-        val name = when (fn) {
-            0x00 -> "madd"; 0x01 -> "maddu"; 0x04 -> "plzcw"
-            0x08 -> "mmi0"; 0x09 -> "mmi2"; 0x10 -> "mmi1"; 0x11 -> "mmi3"
-            0x18 -> "mult1"; 0x19 -> "multu1"; 0x20 -> "paddw"
-            else -> return ".word MMI " + hex(word)
+        val group = when (fn) {
+            0x08 -> "MMI0"; 0x09 -> "MMI2"; 0x10 -> "MMI1"; 0x11 -> "MMI3"
+            else -> "MMI"
         }
-        return name + " " + r(rd) + ", " + r(rs) + ", " + r(rt) + " [sub=" + sub + "]"
+        return ".word " + group + " " + hex(word) +
+            " [subfunction=" + ((word ushr 6) and 0x1f) + "]"
     }
 }
