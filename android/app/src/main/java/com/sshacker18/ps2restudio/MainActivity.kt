@@ -334,6 +334,26 @@ class MainActivity : Activity() {
                 }
                 report.append("Delay-slot instruction addresses: ").append(flow.delaySlots.size).append('\n')
                 report.append("Direct call sites: ").append(flow.edges.count { it.kind == "call" }).append('\n')
+                report.append("\nPER-FUNCTION CFG SUMMARIES (symbol-backed functions)\n")
+                var renderedFunctions = 0
+                for (fn in catalog) {
+                    if (renderedFunctions >= 100) break
+                    val startIndex = ((fn.address - textSection.address) / 4L).toInt()
+                    if (startIndex !in cfgWords.indices) continue
+                    val availableWords = cfgWords.size - startIndex
+                    val requestedWords = if (fn.size > 0L) (fn.size / 4L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt() else availableWords
+                    val count = minOf(availableWords, requestedWords).coerceAtLeast(0)
+                    if (count == 0) continue
+                    val functionFlow = MipsControlFlow.analyze(cfgWords.subList(startIndex, startIndex + count), fn.address)
+                    report.append("FUNCTION ").append(fn.name).append(" @0x")
+                        .append(java.lang.Long.toHexString(fn.address))
+                        .append(" blocks=").append(functionFlow.blockStarts.size)
+                        .append(" edges=").append(functionFlow.edges.size)
+                        .append(" calls=").append(functionFlow.edges.count { it.kind == "call" })
+                        .append(" confidence=HIGH\\n")
+                    renderedFunctions++
+                }
+                report.append("Per-function CFG summaries are bounded to 100 symbol-backed functions in the analyzed .text window.\\n")
                 report.append("Indirect transfers remain unresolved; branch-likely annul semantics and dynamic targets are not inferred.\n")
                 report.append("Unsupported PS2/VU/MMI encodings remain raw .word values.\n")
             }
