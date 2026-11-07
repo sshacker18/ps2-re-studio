@@ -36,8 +36,9 @@ def test_rejects_non_elf():
 
 def test_rejects_truncated_elf64_header():
     ident = b"\x7fELF" + bytes([2, 1, 1]) + bytes(9)
+    header = struct.pack("<HHIQQQIHHHHHH", 2, 8, 1, 0, 64, 0, 0, 64, 56, 0, 64, 0, 0)
     with pytest.raises(ValueError, match="Truncated ELF64"):
-        analyze_elf(ident + bytes(48))
+        analyze_elf((ident + header)[:-1])
 
 
 def test_rejects_invalid_program_header_entry_size():
