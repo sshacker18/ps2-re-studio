@@ -17,16 +17,18 @@ Target: standalone Android APK, validated on Redmi A15 5G / Android 16 (4 GB RAM
 - [x] Add conservative MIPS III / R5900 decoder coverage for common integer, branch, load/store, and coprocessor transfer instructions.
 - [x] Preserve unverified MMI and VU encodings as raw words.
 - [x] Add known-vector unit tests for stack setup, return, branch target, and unknown-word preservation.
-- [ ] Validate full APK build and test against the uploaded dungeon_game.elf report.
-- [ ] Replace heuristic-only function candidates with symbol-aware function records and confidence labels.
+- [x] Validate APK workflow baseline and compare the analyzer against the uploaded dungeon_game.elf report (4.39 MB ELF32 little-endian MIPS EXEC; entry 0x1000D8; 59 named STT_FUNC records including _root at 0x10021C).
+- [x] Add symbol-aware function records restricted to executable sections, HIGH confidence for ELF STT_FUNC, and explicit heuristic labels for prologue-derived candidates.
+- [ ] Install the latest APK on Redmi A15 5G / Android 16 and verify the same ELF end-to-end on-device.
 
 ## Phase 2 — Function and control-flow recovery
 
-- Recover functions from ELF STT_FUNC symbols and executable sections.
-- Resolve direct J/JAL and branch references.
-- Build basic blocks and per-function control-flow graphs.
-- Track delay slots and distinguish call, branch, return, and unresolved edges.
-- Export compact, searchable text reports.
+- [x] Recover functions from ELF STT_FUNC symbols and executable sections; infer only missing sizes from the next symbol/section boundary.
+- [x] Resolve direct J/JAL and conditional branch references.
+- [x] Build bounded basic-block/control-flow graph candidates over up to 256 KiB of .text.
+- [x] Track delay-slot addresses and distinguish call, branch, return, indirect-call, and unresolved edges.
+- [x] Export compact, searchable text reports including function confidence and CFG edges.
+- [ ] Validate CFG accuracy against a known-good disassembler and the complete dungeon_game.elf on device; indirect jumps remain unresolved.
 
 ## Phase 3 — PS2 subsystem intelligence
 
