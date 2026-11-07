@@ -1,35 +1,30 @@
 # PS2 RE Studio
 
-A mobile-first web workbench for inspecting PlayStation 2 homebrew executables and building a repeatable reverse-engineering workflow.
+A native, offline-first Android workbench for inspecting PlayStation 2 homebrew ELF executables.
 
-## Current milestone: ELF Analyzer
-- Upload .elf, .irx, and object files up to 32 MB.
+## Android APK (current milestone)
+The Android app runs fully on-device. It does not need a hosted backend, account, or network connection to inspect files.
+
+- Select an ELF using Android's system file picker.
 - Parses ELF32/ELF64 headers and load segments.
-- Identifies MIPS ELF32 little-endian files as **PS2 candidates**, not guaranteed-compatible binaries.
-- Responsive browser UI and automated parser tests.
+- Identifies MIPS ELF32 little-endian files as **PS2 format candidates**, not guaranteed-compatible executables.
+- Enforces a 32 MB file-size limit.
 
-## Run locally
-Requires Python 3.11+.
+## Build the APK
+Open the repository's **Actions** tab and select the latest **Android APK** run. Download the `ps2-re-studio-debug-apk` artifact and extract `app-debug.apk), then install it on your Android device. GitHub Actions builds the APK on every push to main and on manual workflow dispatch.
+
+For a local build, install JDK 17 and Gradle 8.9, then run:
 ```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-PYTHONPATH=. uvicorn app.main:app --host 0.0.0.0 --port 8000
+cd android
+gradle :app:assembleDebug
 ```
-Open frontend/index.html. The UI defaults to http://localhost:8000. Configure window.PS2_API_URL for a deployed API and restrict CORS to the frontend origin before production.
-
-## API
-- GET /health
-- POST /api/analyze (multipart field: file)
 
 ## Roadmap
-1. ELF metadata analyzer (current)
+1. Offline ELF metadata analyzer (current)
 2. Symbol and section inspection
 3. MIPS disassembly and function discovery
-4. Ghidra project integration
+4. Optional Ghidra integration
 5. PS2Recomp workflow experiments
-6. Isolated build workers and artifact reports
 
 ## Legal and safety
-Use homebrew, open-source samples, or game data you are legally entitled to use. This project does not download commercial game images, BIOS files, or copyrighted assets. Uploaded bytes are processed in memory by this initial API and are not written to disk by the application.
+Use homebrew, open-source samples, or game data you are legally entitled to use. The app does not download commercial game images, BIOS files, or copyrighted assets. Selected files are read locally and are not uploaded.
