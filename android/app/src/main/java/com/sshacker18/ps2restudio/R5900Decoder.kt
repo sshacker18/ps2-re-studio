@@ -174,7 +174,7 @@ internal object R5900Decoder {
             0x02 -> "cfc2 " + r(rt) + ", \$vi" + rd
             0x04 -> "qmtc2 " + r(rt) + ", \$vf" + rd
             0x06 -> "ctc2 " + r(rt) + ", \$vi" + rd
-            0x08 -> "bc2" + if (rt and 1 == 0) "f " else "t " +
+            0x08 -> "bc2" + (if ((rt and 1) == 0) "f " else "t ") +
                 hex(target(pc, signed16(word)))
             else -> ".word COP2/VU " + hex(word)
         }
