@@ -6,15 +6,20 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.text.Editable
+import android.text.TextWatcher
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 class MainActivity : Activity() {
     private lateinit var output: TextView
     private lateinit var status: TextView
+    private lateinit var filter: EditText
+    private var completeReport: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +48,19 @@ class MainActivity : Activity() {
         content.addView(Button(this).apply { text = "CHOOSE ELF FILE"; setOnClickListener { chooseFile() } })
         status = label("Ready. Select dungeon_game.elf to begin.", 14f, 0xFF9FC5FF.toInt())
         content.addView(status)
+        filter = EditText(this).apply {
+            hint = "Search symbols or instructions"
+            setSingleLine(true)
+            setTextColor(0xFFEDF2FF.toInt())
+            setHintTextColor(0xFF8FA4C4.toInt())
+            setBackgroundColor(0xFF172238.toInt())
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { renderReport(s?.toString().orEmpty()) }
+                override fun afterTextChanged(s: Editable?) {}
+            })
+        }
+        content.addView(filter)
         output = label("Your analysis report will appear here.", 14f, 0xFFEDF2FF.toInt()).apply {
             setBackgroundColor(0xFF111A2B.toInt()); setPadding(pad, pad, pad, pad)
         }
@@ -71,7 +89,8 @@ class MainActivity : Activity() {
                 }
                 out.toByteArray()
             } ?: error("Unable to read selected file.")
-            output.text = analyze(bytes, uri.lastPathSegment ?: "selected.elf")
+            completeReport = analyze(bytes, uri.lastPathSegment ?: "selected.elf")
+            output.text = completeReport
             status.text = "Analysis complete - " + bytes.size + " bytes"
         } catch (e: Exception) {
             status.text = "Analysis failed"; output.text = e.message ?: "Could not analyze this file."
@@ -148,8 +167,32 @@ class MainActivity : Activity() {
         val symbols=parseSymbols(data,b,sections,elfClass)
         report.append("\nSYMBOLS (showing ").append(symbols.size).append(", maximum 200)\n")
         if(symbols.isEmpty()) report.append("No readable symbol names found. This ELF may be stripped.\n")
-        for(symbol in symbols) report.append(symbol).append('\n')
+        for(symbol in symbols) {
+            val rawName = symbol.substringBefore(" ")
+            val readable = demangle(rawName)
+            report.append(if (readable != rawName) symbol.replaceFirst(rawName, readable + " [" + rawName + "]") else symbol).append('\n')
+        }
         report.append("\nStripped executables may not contain symbol names; section metadata is still available.\n")
+        if (machine == 8) {
+            val textSection = sections.firstOrNull { sec ->
+                names?.let { readString(it, sec.nameOffset) } == ".text" && (sec.flags and 0x4L) != 0L
+            }
+            if (textSection != null) {
+                report.append("\nMIPS DISASSEMBLY (.text, first 128 instructions)\n")
+                val start = textSection.offset
+                val available = minOf(textSection.size, 128L * 4L)
+                var i = 0L
+                while (i + 4 <= available && start + i + 4 <= data.size) {
+                    val word = u32(b, (start + i).toInt())
+                    val address = textSection.address + i
+                    report.append("0x").append(java.lang.Long.toHexString(address))
+                        .append("  ").append(java.lang.String.format("%08X", word))
+                        .append("  ").append(decodeMips(word, address)).append('\n')
+                    i += 4
+                }
+                report.append("Unsupported PS2/VU/MMI encodings remain raw .word values.\n")
+            }
+        }
         return report.toString()
     }
 
@@ -227,6 +270,74 @@ class MainActivity : Activity() {
             if(result.size>=200)break
         }
         return result
+    }
+
+
+    private fun renderReport(query: String) {
+        if (!::output.isInitialized || completeReport.isEmpty()) return
+        if (query.isBlank()) { output.text = completeReport; return }
+        val matches = completeReport.lineSequence().filter { it.contains(query, ignoreCase = true) }.take(250).toList()
+        output.text = if (matches.isEmpty()) "No matches for: " + query else
+            "SEARCH RESULTS (" + matches.size + " lines) for: " + query + "\n\n" + matches.joinToString("\n")
+    }
+
+    private fun demangle(name: String): String {
+        if (!name.startsWith("_Z")) return name
+        val input = name.substring(2)
+        var i = if (input.startsWith("N")) 1 else 0
+        val nested = input.startsWith("N")
+        val parts = ArrayList<String>()
+        while (i < input.length) {
+            if (nested && input[i] == 'E') break
+            val start = i
+            while (i < input.length && input[i].isDigit()) i++
+            if (start == i) return name
+            val length = input.substring(start, i).toIntOrNull() ?: return name
+            if (length <= 0 || i + length > input.length) return name
+            parts.add(input.substring(i, i + length)); i += length
+            if (!nested) break
+        }
+        return if (parts.isEmpty()) name else parts.joinToString("::")
+    }
+
+    private fun decodeMips(word: Long, pc: Long): String {
+        val op=((word ushr 26) and 63).toInt(); val rs=((word ushr 21) and 31).toInt()
+        val rt=((word ushr 16) and 31).toInt(); val rd=((word ushr 11) and 31).toInt()
+        val sh=((word ushr 6) and 31).toInt(); val fn=(word and 63).toInt()
+        val imm=(word and 0xffff).toInt().toShort().toInt(); val target=word and 0x03ffffff
+        val names=arrayOf("zero","at","v0","v1","a0","a1","a2","a3","t0","t1","t2","t3","t4","t5","t6","t7","s0","s1","s2","s3","s4","s5","s6","s7","t8","t9","k0","k1","gp","sp","fp","ra")
+        fun reg(n:Int) = "$" + names[n]
+        val branch=pc+4+(imm.toLong() shl 2)
+        return when(op) {
+            0 -> when(fn) {
+                0 -> if(word==0L) "nop" else "sll " + reg(rd)+", "+reg(rt)+", "+sh
+                2 -> "srl "+reg(rd)+", "+reg(rt)+", "+sh
+                3 -> "sra "+reg(rd)+", "+reg(rt)+", "+sh
+                8 -> "jr "+reg(rs); 9 -> "jalr "+reg(rd)+", "+reg(rs)
+                16 -> "mfhi "+reg(rd); 18 -> "mflo "+reg(rd)
+                24 -> "mult "+reg(rs)+", "+reg(rt); 25 -> "multu "+reg(rs)+", "+reg(rt)
+                32 -> "add "+reg(rd)+", "+reg(rs)+", "+reg(rt)
+                33 -> "addu "+reg(rd)+", "+reg(rs)+", "+reg(rt)
+                34 -> "sub "+reg(rd)+", "+reg(rs)+", "+reg(rt)
+                35 -> "subu "+reg(rd)+", "+reg(rs)+", "+reg(rt)
+                36 -> "and "+reg(rd)+", "+reg(rs)+", "+reg(rt)
+                37 -> "or "+reg(rd)+", "+reg(rs)+", "+reg(rt)
+                42 -> "slt "+reg(rd)+", "+reg(rs)+", "+reg(rt)
+                else -> ".word 0x"+java.lang.Long.toHexString(word)
+            }
+            2,3 -> (if(op==2) "j " else "jal ")+"0x"+java.lang.Long.toHexString(((pc+4) and 0xf0000000L) or (target shl 2))
+            4 -> "beq "+reg(rs)+", "+reg(rt)+", 0x"+java.lang.Long.toHexString(branch)
+            5 -> "bne "+reg(rs)+", "+reg(rt)+", 0x"+java.lang.Long.toHexString(branch)
+            8 -> "addi "+reg(rt)+", "+reg(rs)+", "+imm
+            9 -> "addiu "+reg(rt)+", "+reg(rs)+", "+imm
+            12 -> "andi "+reg(rt)+", "+reg(rs)+", 0x"+java.lang.Long.toHexString(word and 0xffff)
+            13 -> "ori "+reg(rt)+", "+reg(rs)+", 0x"+java.lang.Long.toHexString(word and 0xffff)
+            15 -> "lui "+reg(rt)+", 0x"+java.lang.Long.toHexString(word and 0xffff)
+            35 -> "lw "+reg(rt)+", "+imm+"("+reg(rs)+")"
+            43 -> "sw "+reg(rt)+", "+imm+"("+reg(rs)+")"
+            18 -> "cop2/raw 0x"+java.lang.Long.toHexString(word)
+            else -> ".word 0x"+java.lang.Long.toHexString(word)
+        }
     }
 
     private fun u32(buffer:ByteBuffer,offset:Int):Long=buffer.getInt(offset).toLong() and 0xffffffffL
