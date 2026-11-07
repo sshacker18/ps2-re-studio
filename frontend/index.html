@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#090d18"><title>PS2 RE Studio</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,system-ui,Arial,sans-serif;background:#090d18;color:#edf2ff}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 80% 0%,#18284a 0,transparent 42%),#090d18}
+main{width:min(920px,100%);margin:auto;padding:28px 18px 60px}.top{display:flex;align-items:center;gap:12px;margin-bottom:36px}
+.logo{width:42px;height:42px;border-radius:12px;background:#253e70;display:grid;place-items:center;font-weight:900;color:#9ec5ff}
+h1{font-size:clamp(25px,6vw,38px);margin:0}p{color:#aab8d0;line-height:1.55}.eyebrow{color:#83b7ff;font-size:12px;font-weight:700;letter-spacing:.16em}
+.panel{background:#111a2b;border:1px solid #263652;border-radius:18px;padding:22px;margin:18px 0}
+.drop{border:1px dashed #55709a;border-radius:14px;padding:28px 16px;text-align:center}
+input{max-width:100%;margin:14px 0;color:#dce8ff}button{border:0;border-radius:11px;padding:13px 18px;background:#3478df;color:white;font-weight:700;font-size:15px}
+button:disabled{opacity:.5}#status{min-height:24px;color:#9fc5ff}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}
+.metric{background:#0b1322;border:1px solid #263652;border-radius:12px;padding:13px;overflow-wrap:anywhere}.metric small{display:block;color:#8fa4c4;margin-bottom:7px}.metric strong{font-size:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:9px;border-bottom:1px solid #293750;overflow-wrap:anywhere}
+.hidden{display:none}.pill{display:inline-block;background:#173c35;color:#7ce0b2;padding:5px 9px;border-radius:30px;font-size:12px}
+</style></head>
+<body><main>
+<div class="top"><div class="logo">PS2</div><div><div class="eyebrow">REVERSE ENGINEERING WORKBENCH</div><h1>PS2 RE Studio</h1></div></div>
+<p>Start with a safe ELF inspection. Upload a homebrew executable to inspect its ELF header, architecture, entry point and load segments.</p>
+<section class="panel"><div class="eyebrow">MILESTONE 01 · ELF ANALYZER</div><div class="drop">
+<h2>Analyze an executable</h2><p>Choose a local .ELF, .IRX or object file (maximum 32 MB).</p>
+<input id="file" type="file" accept=".elf,.irx,.o"><br><button id="run">Analyze ELF</button><div id="status" role="status"></div>
+</div></section>
+<section id="result" class="panel hidden" aria-live="polite"><div id="verdict"></div><h2 id="name"></h2><div class="grid" id="metrics"></div><h3>Load segments</h3><div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Virtual address</th><th>File size</th><th>Memory size</th><th>Flags</th></tr></thead><tbody id="segments"></tbody></table></div><p id="note"></p></section>
+<p style="font-size:12px">Local browser upload · No game files are stored by this demo API. Use only homebrew binaries or game dumps you are legally entitled to use.</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+$("run").addEventListener("click",async()=>{
+ const f=$("file").files[0]; if(!f){$("status").textContent="Choose an ELF file first.";return;}
+ $("run").disabled=true;$("status").textContent="Analyzing "+f.name+"…";
+ try{
+  const fd=new FormData();fd.append("file",f);
+  const r=await fetch((window.PS2_API_URL||"http://localhost:8000")+"/api/analyze",{method:"POST",body:fd});
+  const d=await r.json();if(!r.ok)throw new Error(d.detail||"Analysis failed");
+  $("result").classList.remove("hidden");$("name").textContent=d.filename;
+  $("verdict").innerHTML=d.ps2_candidate?'<span class="pill">MIPS ELF32 · PS2 candidate</span>':'<span class="pill">ELF parsed · platform not confirmed</span>';
+  const fields=[["Format",d.format],["Architecture",d.machine],["Byte order",d.endianness],["ELF type",d.type],["Entry point",d.entry_point],["File size",(d.file_size/1024).toFixed(1)+" KB"],["Program headers",d.program_header_count],["Section headers",d.section_header_count]];
+  $("metrics").replaceChildren(...fields.map(([k,v])=>{const e=document.createElement("div");e.className="metric";const s=document.createElement("small");s.textContent=k;const b=document.createElement("strong");b.textContent=v;e.append(s,b);return e;}));
+  $("segments").replaceChildren(...d.segments.map(x=>{const tr=document.createElement("tr");[x.index,x.virtual_address,x.file_size,x.memory_size,"0x"+x.flags.toString(16)].forEach(v=>{const td=document.createElement("td");td.textContent=v;tr.append(td)});return tr;}));
+  $("note").textContent=d.note;$("status").textContent="Analysis complete.";
+ }catch(e){$("status").textContent=e.message;}
+ finally{$("run").disabled=false;}
+});
+</script></body></html>
