@@ -64,3 +64,15 @@ Target: standalone Android APK, validated on Redmi A15 5G / Android 16 (4 GB RAM
 ## Current limitations
 
 The current decoder is a partial static disassembler, not a complete R5900 decoder, decompiler, emulator, or recompiler. MMI/VU instruction semantics and PS2 hardware behavior require verified implementation and test vectors. ELF acceptance does not prove that an executable will boot on a PS2 runtime.
+
+## USB hardware diagnostics milestone
+
+- Added a native Android USB diagnostics screen using `UsbManager` and `UsbDevice`.
+- Lists connected USB peripherals and displays VID/PID, device/interface class codes, interfaces, endpoint direction/type/packet size and permission state.
+- Requests Android USB permission only after the user explicitly selects the request action.
+- Opens a permissioned device connection for inventory diagnostics only; this version does not claim interfaces or perform transfers.
+- Captures physical gamepad key and joystick motion events through Android's input framework; no touchscreen gameplay controls are added.
+- Exports a plain-text diagnostic report for sharing.
+- Includes the owner-supplied board label `BM-989 (WL2039RG) VER1.5` as an unverified investigation note only.
+- This screen cannot electrically detect a bare PCB or infer a proprietary 2.4 GHz protocol. Receiver protocol analysis requires the original receiver or compatible radio hardware and captured evidence.
+- Device validation on Redmi A15 5G remains pending; CI build result must be checked before distributing an APK.
