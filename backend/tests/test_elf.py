@@ -6,13 +6,18 @@ from app.main import analyze_elf
 
 
 def sample(*, phoff=52, phentsize=32, phnum=0, shoff=52, shentsize=40, shnum=0):
-    ident = b"\\x7fELF" + bytes([1, 1, 1]) + bytes(9)
+    ident = b"\x7fELF" + bytes([1, 1, 1]) + bytes(9)
     header = struct.pack(
         "<HHIIIIIHHHHHH",
         2, 8, 1, 0x00100000, phoff, shoff, 0, 52,
         phentsize, phnum, shentsize, shnum, 0,
     )
-    return ident + header
+    payload = bytearray(ident + header)
+    if phnum:
+        payload.extend(bytes(max(0, phoff + phentsize * phnum - len(payload))))
+    if shnum:
+        payload.extend(bytes(max(0, shoff + shentsize * shnum - len(payload))))
+    return payload
 
 
 def test_detects_mips_elf32():
@@ -30,7 +35,7 @@ def test_rejects_non_elf():
 
 
 def test_rejects_truncated_elf64_header():
-    ident = b"\\x7fELF" + bytes([2, 1, 1]) + bytes(9)
+    ident = b"\x7fELF" + bytes([2, 1, 1]) + bytes(9)
     with pytest.raises(ValueError, match="Truncated ELF64"):
         analyze_elf(ident + bytes(48))
 
