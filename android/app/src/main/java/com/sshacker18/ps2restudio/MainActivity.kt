@@ -265,6 +265,30 @@ class MainActivity : Activity() {
                 report.append("These are candidate entry points, not proven function boundaries.\n")
             }
         }
+        // Confidence-labelled catalog: only STT_FUNC symbols in executable sections are high confidence.
+        val executableIndices = sections.filter { (it.flags and 0x4L) != 0L }.map { it.index }.toSet()
+        val functionRecords = symbols.mapNotNull { line ->
+            val match = Regex("^(.*?) value=0x([0-9a-fA-F]+) size=(\\d+) bind=.* type=FUNC section=(\\d+)$").find(line)
+            match?.let {
+                val address = it.groupValues[2].toLongOrNull(16) ?: return@let null
+                val size = it.groupValues[3].toLongOrNull() ?: 0L
+                val sectionIndex = it.groupValues[4].toIntOrNull() ?: return@let null
+                FunctionRecovery.Symbol(it.groupValues[1], address, size, 2, sectionIndex)
+            }
+        }
+        val highConfidenceFunctions = FunctionRecovery.fromSymbols(functionRecords, executableIndices)
+        val catalog = FunctionRecovery.inferMissingSizes(
+            highConfidenceFunctions, sections.filter { it.index in executableIndices }
+                .maxOfOrNull { it.address + it.size } ?: 0L
+        )
+        report.append("\nFUNCTION CATALOG (confidence-labelled)\n")
+        report.append("High-confidence ELF STT_FUNC records: ").append(catalog.size).append('\n')
+        catalog.take(300).forEach { fn ->
+            report.append("0x").append(java.lang.Long.toHexString(fn.address))
+                .append(" size=").append(fn.size).append(" ").append(fn.name)
+                .append(" [HIGH • ").append(fn.source).append("]\n")
+        }
+        report.append("Function sizes of zero were bounded by the next symbol or executable-section end; inferred sizes are estimates.\n")
         report.append("\nStripped executables may not contain symbol names; section metadata is still available.\n")
         if (machine == 8) {
             val textSection = sections.firstOrNull { sec ->
