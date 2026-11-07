@@ -53,6 +53,9 @@ class MainActivity : GamepadInputActivity() {
         hero.addView(label("Load an ELF. Explore its code. Prepare it for execution.",18f,white,true))
         hero.addView(label("Offline PS2 homebrew ELF analysis. Playback requires a compatible PS2 emulator or recompiler core.",13f,muted))
         hero.addView(button("＋  LOAD PS2 ELF",cyan) { chooseFile() })
+        hero.addView(button("USB / GAMEPAD DIAGNOSTICS",0xFF9DE7C3.toInt()) {
+            startActivity(Intent(this, UsbDiagnosticsActivity::class.java))
+        })
         content.addView(hero,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=pad })
         status=label("NO GAME LOADED  •  READY",13f,cyan,true)
         content.addView(status)
