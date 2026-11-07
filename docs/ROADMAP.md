@@ -44,6 +44,16 @@ Target: standalone Android APK, validated on Redmi A15 5G / Android 16 (4 GB RAM
 - Use background work, cancellation, progress, and bounded result windows.
 - Preserve the current working APK package identity to avoid Android package-conflict reinstall failures.
 
+### Physical controller input foundation
+
+- [x] Add an Android-native input bridge for standard USB HID and Bluetooth gamepads.
+- [x] Enumerate connected physical gamepads and report device changes.
+- [x] Route physical gamepad key/button events and joystick-axis motion to emulator-facing callbacks.
+- [x] Declare USB host support as optional so devices without USB host capability can still install the app.
+- [ ] Add a gamepad diagnostics screen and validate USB-C/OTG controller enumeration on Redmi A15 5G.
+- [ ] Map normalized controller input to the chosen PS2 core's controller API and verify button/axis mappings.
+- [ ] Keep all gameplay controls physical; do not add virtual touch controls.
+
 ## Phase 5 — Execution and playback research
 
 - Evaluate legally usable PS2 emulator/recompiler cores and their Android integration requirements.
