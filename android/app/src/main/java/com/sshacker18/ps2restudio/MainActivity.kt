@@ -350,10 +350,10 @@ class MainActivity : Activity() {
                         .append(" blocks=").append(functionFlow.blockStarts.size)
                         .append(" edges=").append(functionFlow.edges.size)
                         .append(" calls=").append(functionFlow.edges.count { it.kind == "call" })
-                        .append(" confidence=HIGH\\n")
+                        .append(" confidence=HIGH\n")
                     renderedFunctions++
                 }
-                report.append("Per-function CFG summaries are bounded to 100 symbol-backed functions in the analyzed .text window.\\n")
+                report.append("Per-function CFG summaries are bounded to 100 symbol-backed functions in the analyzed .text window.\n")
                 report.append("Indirect transfers remain unresolved; branch-likely annul semantics and dynamic targets are not inferred.\n")
                 report.append("Unsupported PS2/VU/MMI encodings remain raw .word values.\n")
             }
