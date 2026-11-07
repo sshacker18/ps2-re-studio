@@ -13,7 +13,7 @@ def sample(*, phoff=52, phentsize=32, phnum=0, shoff=52, shentsize=40, shnum=0):
         phentsize, phnum, shentsize, shnum, 0,
     )
     payload = bytearray(ident + header)
-    if phnum:
+    if phnum and phoff == 52:
         payload.extend(bytes(max(0, phoff + phentsize * phnum - len(payload))))
     if shnum:
         payload.extend(bytes(max(0, shoff + shentsize * shnum - len(payload))))
