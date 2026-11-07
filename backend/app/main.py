@@ -15,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 MAX_UPLOAD_BYTES = 32 * 1024 * 1024
-ELF_MAGIC = b"\\x7fELF"
+ELF_MAGIC = b"\x7fELF"
 
 
 def analyze_elf(data: bytes, filename: str = "upload.elf") -> dict[str, Any]:
